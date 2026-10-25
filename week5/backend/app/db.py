@@ -4,7 +4,8 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 load_dotenv()
@@ -38,6 +39,19 @@ def get_session() -> Iterator[Session]:
         raise
     finally:
         session.close()
+
+
+def migrate_notes_created_at(db_engine: Engine) -> None:
+    """Preserve legacy SQLite notes; their original creation time is unknown."""
+    with db_engine.begin() as connection:
+        columns = inspect(connection).get_columns("notes")
+        if not any(column["name"] == "created_at" for column in columns):
+            connection.execute(
+                text(
+                    "ALTER TABLE notes ADD COLUMN created_at DATETIME NOT NULL "
+                    "DEFAULT '1970-01-01 00:00:00'"
+                )
+            )
 
 
 def apply_seed_if_needed() -> None:

@@ -1,0 +1,38 @@
+{
+  "workflow": "performance",
+  "started_at": "2026-10-23T18:27:03.743599+08:00",
+  "python": "3.12.1",
+  "platform": "macOS-14.5-arm64-arm-64bit",
+  "steps": [
+    {
+      "command": [
+        "<VALIDATION_ENV>/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "backend/tests/test_indexes.py",
+        "-p",
+        "no:cacheprovider"
+      ],
+      "exit_code": 0,
+      "stdout": "...                                                                      [100%]\n=============================== warnings summary ===============================\nbackend/app/schemas.py:9\n  <PROJECT_ROOT>/backend/app/schemas.py:9: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/\n    class NoteRead(BaseModel):\n\nbackend/app/schemas.py:29\n  <PROJECT_ROOT>/backend/app/schemas.py:29: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/\n    class ActionItemRead(BaseModel):\n\nbackend/app/main.py:22\n  <PROJECT_ROOT>/backend/app/main.py:22: DeprecationWarning: \n          on_event is deprecated, use lifespan event handlers instead.\n  \n          Read more about it in the\n          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\n          \n    @app.on_event(\"startup\")\n\n<VALIDATION_ENV>/lib/python3.12/site-packages/fastapi/applications.py:4723\n  <VALIDATION_ENV>/lib/python3.12/site-packages/fastapi/applications.py:4723: DeprecationWarning: \n          on_event is deprecated, use lifespan event handlers instead.\n  \n          Read more about it in the\n          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\n          \n    return self.router.on_event(event_type)  # ty: ignore[deprecated]\n\n<VALIDATION_ENV>/lib/python3.12/site-packages/fastapi/testclient.py:1\n  <VALIDATION_ENV>/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n3 passed, 5 warnings in 0.36s\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "<VALIDATION_ENV>/bin/python",
+        "scripts/benchmark_indexes.py",
+        "--rows",
+        "50000",
+        "--repeats",
+        "20"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n  \"rows\": 50000,\n  \"repeats\": 20,\n  \"results_identical\": true,\n  \"before\": {\n    \"title_asc\": {\n      \"median_ms\": 5.5437,\n      \"plan\": [\n        \"SCAN notes\",\n        \"USE TEMP B-TREE FOR ORDER BY\"\n      ]\n    },\n    \"title_asc_filtered\": {\n      \"median_ms\": 24.1789,\n      \"plan\": [\n        \"SCAN notes\",\n        \"USE TEMP B-TREE FOR ORDER BY\"\n      ]\n    },\n    \"created_desc\": {\n      \"median_ms\": 8.3922,\n      \"plan\": [\n        \"SCAN notes\",\n        \"USE TEMP B-TREE FOR ORDER BY\"\n      ]\n    },\n    \"created_desc_filtered\": {\n      \"median_ms\": 59.6185,\n      \"plan\": [\n        \"SCAN notes\",\n        \"USE TEMP B-TREE FOR ORDER BY\"\n      ]\n    }\n  },\n  \"after\": {\n    \"title_asc\": {\n      \"median_ms\": 0.0517,\n      \"plan\": [\n        \"SCAN notes USING INDEX ix_notes_title_id\"\n      ]\n    },\n    \"title_asc_filtered\": {\n      \"median_ms\": 0.328,\n      \"plan\": [\n        \"SCAN notes USING INDEX ix_notes_title_id\"\n      ]\n    },\n    \"created_desc\": {\n      \"median_ms\": 0.0497,\n      \"plan\": [\n        \"SCAN notes USING INDEX ix_notes_created_at_id\"\n      ]\n    },\n    \"created_desc_filtered\": {\n      \"median_ms\": 0.306,\n      \"plan\": [\n        \"SCAN notes USING INDEX ix_notes_created_at_id\"\n      ]\n    }\n  }\n}\n",
+      "stderr": ""
+    }
+  ],
+  "passed": true,
+  "finished_at": "2026-10-23T18:27:08.217521+08:00",
+  "path_redaction": "Only local absolute path prefixes were replaced with <PROJECT_ROOT>/ and <VALIDATION_ENV>/; all test results, timestamps, warnings and benchmark measurements are retained."
+}

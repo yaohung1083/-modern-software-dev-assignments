@@ -1,12 +1,12 @@
-from typing import Optional
+from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import Note
-from ..schemas import NoteCreate, NoteRead
+from ..schemas import NoteCreate, NoteRead, NoteSearchResponse
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 
@@ -26,17 +26,32 @@ def create_note(payload: NoteCreate, db: Session = Depends(get_db)) -> NoteRead:
     return NoteRead.model_validate(note)
 
 
-@router.get("/search/", response_model=list[NoteRead])
-def search_notes(q: Optional[str] = None, db: Session = Depends(get_db)) -> list[NoteRead]:
-    if not q:
-        rows = db.execute(select(Note)).scalars().all()
-    else:
-        rows = (
-            db.execute(select(Note).where((Note.title.contains(q)) | (Note.content.contains(q))))
-            .scalars()
-            .all()
+@router.get("/search/", response_model=NoteSearchResponse)
+def search_notes(
+    q: str | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    sort: Literal["created_desc", "title_asc"] = "created_desc",
+    db: Session = Depends(get_db),
+) -> NoteSearchResponse:
+    query = select(Note)
+    if q:
+        query = query.where(
+            func.lower(Note.title).contains(q.lower(), autoescape=True)
+            | func.lower(Note.content).contains(q.lower(), autoescape=True)
         )
-    return [NoteRead.model_validate(row) for row in rows]
+    total = db.scalar(select(func.count()).select_from(query.subquery()))
+    if sort == "title_asc":
+        query = query.order_by(Note.title.asc(), Note.id.asc())
+    else:
+        query = query.order_by(Note.created_at.desc(), Note.id.desc())
+    rows = db.scalars(query.offset((page - 1) * page_size).limit(page_size)).all()
+    return NoteSearchResponse(
+        items=[NoteRead.model_validate(row) for row in rows],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get("/{note_id}", response_model=NoteRead)

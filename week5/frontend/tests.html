@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Task 2 frontend integration tests</title>
+  <script type="importmap">
+    {"imports":{"react":"https://esm.sh/react@18.3.1","react-dom/client":"https://esm.sh/react-dom@18.3.1/client?external=react"}}
+  </script>
+</head>
+<body>
+  <pre id="test-results">Running browser integration tests…</pre>
+  <div id="root"></div>
+  <script type="module">
+    // Standalone, mocked browser tests: open /static/tests.html with the API running.
+    // Production index.html never imports this harness.
+    const requests = [];
+    const notes = Array.from({ length: 21 }, (_, index) => ({
+      id: index + 1, title: `Note ${String(index + 1).padStart(2, '0')}`, content: 'Example content',
+    }));
+    const actions = [{ id: 1, description: 'Existing task', completed: false }];
+    window.fetch = async (url, options = {}) => {
+      requests.push({ url, options });
+      const parsed = new URL(url, location.origin);
+      let payload;
+      if (parsed.pathname === '/notes/search/') {
+        const query = parsed.searchParams.get('q').toLowerCase();
+        const page = Number(parsed.searchParams.get('page'));
+        const size = Number(parsed.searchParams.get('page_size'));
+        const matches = notes.filter(note => `${note.title} ${note.content}`.toLowerCase().includes(query));
+        matches.sort(parsed.searchParams.get('sort') === 'title_asc'
+          ? (a, b) => a.title.localeCompare(b.title) : (a, b) => b.id - a.id);
+        payload = { items: matches.slice((page - 1) * size, page * size), total: matches.length, page, page_size: size };
+      } else if (parsed.pathname === '/notes/' && options.method === 'POST') {
+        payload = { id: notes.length + 1, ...JSON.parse(options.body) };
+        notes.push(payload);
+      } else if (parsed.pathname === '/action-items/' && options.method === 'POST') {
+        payload = { id: actions.length + 1, completed: false, ...JSON.parse(options.body) };
+        actions.push(payload);
+      } else if (parsed.pathname.endsWith('/complete') && options.method === 'PUT') {
+        payload = actions.find(action => action.id === Number(parsed.pathname.split('/')[2]));
+        payload.completed = true;
+      } else if (parsed.pathname === '/action-items/') {
+        payload = actions;
+      } else { throw new Error(`Unexpected request: ${url}`); }
+      return { ok: true, json: async () => JSON.parse(JSON.stringify(payload)) };
+    };
+
+    const output = document.getElementById('test-results');
+    const lines = [];
+    function assert(condition, message) {
+      if (!condition) throw new Error(message);
+      lines.push(`PASS: ${message}`);
+      output.textContent = lines.join('\n');
+    }
+    async function until(predicate) {
+      for (let i = 0; i < 200; i++) {
+        if (predicate()) return;
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+      throw new Error('Timed out waiting for UI update');
+    }
+    function input(element, value) {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(element, value);
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    async function ready(text) {
+      await until(() => document.getElementById('result-count')?.textContent === text);
+    }
+    try {
+      await import('./app.js');
+      await ready('21 results');
+      assert(document.querySelectorAll('#notes li').length === 10, 'Initial page contains 10 notes');
+      assert(document.getElementById('previous-page').disabled, 'Previous disabled on first page');
+      document.getElementById('next-page').click();
+      await until(() => document.getElementById('page-number').textContent === 'Page 2 of 3' && !document.getElementById('next-page').disabled);
+      assert(document.querySelector('#notes li').textContent.startsWith('Note 11:'), 'Next loads second page from API');
+      document.getElementById('next-page').click();
+      await until(() => document.querySelectorAll('#notes li').length === 1);
+      assert(document.getElementById('next-page').disabled, 'Next disabled on final page');
+      document.getElementById('previous-page').click();
+      await until(() => document.querySelectorAll('#notes li').length === 10);
+      assert(document.getElementById('page-number').textContent === 'Page 2 of 3', 'Previous loads preceding page');
+      const sort = document.getElementById('note-sort');
+      sort.value = 'title_asc';
+      sort.dispatchEvent(new Event('change', { bubbles: true }));
+      await until(() => document.querySelector('#notes li').textContent.startsWith('Note 01:'));
+      assert(document.getElementById('page-number').textContent === 'Page 1 of 3', 'Sorting resets to first page');
+      input(document.getElementById('note-search'), 'NOTE 21');
+      await ready('1 result');
+      assert(document.querySelector('#notes li').textContent.startsWith('Note 21:'), 'Search passes query and renders matches');
+      input(document.getElementById('note-search'), 'absent');
+      await ready('0 results');
+      assert(document.getElementById('previous-page').disabled && document.getElementById('next-page').disabled, 'Empty search disables both pagination controls');
+      input(document.getElementById('note-search'), '');
+      await ready('21 results');
+      const noteForm = document.getElementById('note-form');
+      input(noteForm.elements.title, 'Created note');
+      input(noteForm.elements.content, 'Created content');
+      noteForm.requestSubmit();
+      await ready('22 results');
+      assert(notes.at(-1).title === 'Created note', 'Create note preserves existing functionality and refreshes results');
+      await until(() => document.querySelector('#actions button'));
+      document.querySelector('#actions button').click();
+      await until(() => document.getElementById('actions').textContent.includes('[done]'));
+      assert(actions[0].completed, 'Complete action preserves existing functionality');
+      const actionForm = document.getElementById('action-form');
+      input(actionForm.elements.description, 'Created task');
+      actionForm.requestSubmit();
+      await until(() => document.querySelectorAll('#actions li').length === 2);
+      assert(actions[1].description === 'Created task', 'Create action preserves existing functionality');
+      assert(requests.some(request => request.url.includes('sort=title_asc')), 'Sort option is sent to search endpoint');
+      output.dataset.status = 'passed';
+      output.textContent += `\n${lines.length} assertions passed.`;
+    } catch (error) {
+      output.dataset.status = 'failed';
+      output.textContent += `\nFAIL: ${error.stack}`;
+      console.error(error);
+    }
+  </script>
+</body>
+</html>

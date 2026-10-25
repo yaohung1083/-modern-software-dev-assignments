@@ -4,7 +4,8 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .db import apply_seed_if_needed, engine
+from .db import apply_seed_if_needed, engine, migrate_notes_created_at
+from .indexes import ensure_query_indexes
 from .models import Base
 from .routers import action_items as action_items_router
 from .routers import notes as notes_router
@@ -21,6 +22,8 @@ app.mount("/static", StaticFiles(directory="frontend"), name="static")
 @app.on_event("startup")
 def startup_event() -> None:
     Base.metadata.create_all(bind=engine)
+    migrate_notes_created_at(engine)
+    ensure_query_indexes(engine)
     apply_seed_if_needed()
 
 

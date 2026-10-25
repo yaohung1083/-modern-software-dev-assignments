@@ -1,5 +1,8 @@
 __pycache__/
 *.py[cod]
+*.pyc
+.pytest_cache/
+.ruff_cache/
 *.class
 *.so
 .Python
@@ -22,12 +25,16 @@ PIPFILE.lock
 
 # Database
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 
 # Environment variables
 .env
+.env.*
 .venv
+.venv/
 env/
 venv/
 ENV/
